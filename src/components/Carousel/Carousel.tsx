@@ -11,11 +11,12 @@ interface CarouselProps extends settingsProps {
 const Carousel = ({imageUrls, settings, setSettings}: CarouselProps) => {
   const [imageIndex, setImageIndex] = useState<number>(0);
   const [renderQueue, setRenderQueue] = useState<string[]>(
-    [imageUrls[imageIndex], imageUrls[imageIndex + 1]])
+    [imageUrls[imageIndex]])
 
 
   const currentTarget = useRef<HTMLImageElement>(null)
-
+  const targetIndex = useRef<1 | 2 | 0>(0)
+  const [targetIndexState, setTargetIndexState] = useState(false)
 
   const showPrevImage = () => {
     let i = 0
@@ -42,20 +43,45 @@ const Carousel = ({imageUrls, settings, setSettings}: CarouselProps) => {
 
   };
 
-  // const observer = new IntersectionObserver((entries) => {
-  //   entries.forEach((entry) => {
-  //     if (!entry.isIntersecting) {
-  //       setRenderQueue((prevState) => prevState.slice(1))
-  //       setSettings({...settings, animation: false})
-  //       setIsTranslated(false)
-  //       isNeedTranslate.current = false
-  //       observer.disconnect()
-  //     }
-  //   })
-  // }, {
-  //   threshold: 0
-  // })
 
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) {
+        async function loop() {
+          await wait(10000)
+          setRenderQueue((prevState) => {
+            if (targetIndex) {
+
+              // console.log(prevState.slice(1))
+              return prevState.slice(1)
+            } else {
+              return prevState.slice(0, 1)
+            }
+          })
+          observer.disconnect()
+        }
+
+        setRenderQueue((prevState) => {
+          if (!targetIndex.current) {
+
+            console.log('obrazenij 1', prevState.slice(1))
+            return prevState.slice(1)
+          } else {
+            console.log('obrazanij', prevState.slice(0, 1))
+            return prevState.slice(0, 1)
+          }
+        })
+        setSettings({...settings, animation: false})
+        setTargetIndexState(false)
+        observer.disconnect()
+
+
+      }
+    })
+  }, {
+    threshold: 0.05
+  })
+  // console.log(imageIndex)
 
   const showNextImageStrip = () => {
     setImageIndex((index) => {
@@ -64,49 +90,91 @@ const Carousel = ({imageUrls, settings, setSettings}: CarouselProps) => {
     });
 
   };
-  console.log(renderQueue)
-  const showNextImageDeque = () => {
-    let i = 0
-    setImageIndex((index) => {
-      if (index === imageUrls.length - 1) {
-        i = 0
-      } else {
-        i = index + 1
-      }
-      return i;
-    });
-    if (renderQueue.length !== imageUrls.length) {
-      setRenderQueue((prevState) => [...prevState, imageUrls[i + 1]])
-    }
+  // const showNextImageDeque = () => {
+  //   let i = 0
+  //   setImageIndex((index) => {
+  //     if (index === imageUrls.length - 1) {
+  //       i = 0
+  //     } else {
+  //       i = index + 1
+  //     }
+  //     return i;
+  //   });
+  //   if (renderQueue.length !== imageUrls.length) {
+  //     setRenderQueue((prevState) => [...prevState, imageUrls[i + 1]])
+  //   }
+  //
+  // }
 
+  const showPrevImageDeque = () => {
+    targetIndex.current = 1
+    console.log(1)
+    let currentIndex = imageIndex;
+    setImageIndex((prevIndex) => {
+      if (prevIndex === 0) {
+        currentIndex = imageUrls.length - 1
+      } else {
+        currentIndex = prevIndex - 1
+      }
+      return currentIndex;
+    })
+
+    setRenderQueue((prevQueue) => [imageUrls[currentIndex], ...prevQueue])
   }
 
+  const showNextImageDeque = () => {
+    if (renderQueue.length > 1) return
+    targetIndex.current = 0
+    let currentIndex = imageIndex;
+    setImageIndex((prevIndex) => {
+      if (prevIndex === imageUrls.length - 1) {
+        currentIndex = 0
+      } else {
+        currentIndex = prevIndex + 1
+      }
+      return currentIndex;
+    })
+    setRenderQueue((prevQueue) => [...prevQueue, imageUrls[currentIndex]])
+  }
+
+  console.log(renderQueue)
   useEffect(() => {
       let canceled = false;
 
-      async function loop() {
-        while (!canceled && settings.autoReplay) {
-          await wait(settings.autoReplayDelay)
-          showNextImageDeque()
-          if (settings.animation) {
-            await wait(settings.animDuration)
-          }
-        }
-      }
-
-      // fdfddfsdfdfdf
-      // if (isNeedTranslate.current) {
-      //   setIsTranslated(true)
-      //   if (currentTarget.current) observer.observe(currentTarget.current)
+      // async function loop() {
+      //   while (!canceled && settings.autoReplay) {
+      //     await wait(settings.autoReplayDelay)
+      //     showNextImageDeque()
+      //     if (settings.animation) {
+      //       await wait(settings.animDuration)
+      //     }
+      //   }
       // }
 
+      // console.log('currentTarget:', currentTarget.current)
+      // console.log('targetIndex:', targetIndex.current)
 
+      async function loop() {
+
+        if (renderQueue.length === 2) {
+          console.log(currentTarget.current)
+          if (currentTarget.current) observer.observe(currentTarget.current)
+          setTargetIndexState(true)
+          console.log('konec')
+        }
+
+      }
+
+      setSettings({...settings, animation: true})
       loop()
+      // loop()
       return () => {
         canceled = true
       }
     },
-    [settings.autoReplay, settings.animation])
+    [renderQueue])
+  // [settings.autoReplay, settings.animation]
+
 
   return (
     <div style={{position: "relative", width: "640px", height: "auto"}}>
@@ -118,29 +186,29 @@ const Carousel = ({imageUrls, settings, setSettings}: CarouselProps) => {
           height: "100%",
         }}
       >
-        {settings.sliderLogic === 'strip' && imageUrls.map((url) => {
-          return <img
-            alt={`img-${url}`}
-            key={url}
-            src={url}
-            className="carousel-image"
-            style={{
-              translate: `${-100 * imageIndex}%`,
-              transition: settings.animation ? `translate ${settings.animDuration}ms ${settings.animationCurve}` : ''
-            }}
-          />
-        })}
+        {/*{settings.sliderLogic === 'strip' && imageUrls.map((url) => {*/}
+        {/*  return <img*/}
+        {/*    alt={`img-${url}`}*/}
+        {/*    key={url}*/}
+        {/*    src={url}*/}
+        {/*    className="carousel-image"*/}
+        {/*    style={{*/}
+        {/*      translate: `${-100 * imageIndex}%`,*/}
+        {/*      transition: settings.animation ? `translate ${settings.animDuration}ms ${settings.animationCurve}` : ''*/}
+        {/*    }}*/}
+        {/*  />*/}
+        {/*})}*/}
 
         {settings.sliderLogic === 'deque' && renderQueue.map((url, index) => (
           <img
             alt={`img-${url}`}
             key={url}
             src={url}
-            ref={0 === index ? currentTarget : null}
+            ref={index === 0 ? currentTarget : null}
             // ref={currentTarget}
             className="carousel-image"
             style={{
-              translate: `${-100 * imageIndex}%`,
+              translate: targetIndexState ? `${-100 * (renderQueue.length - 1)}%` : ``,
               transition: settings.animation ? `translate ${settings.animDuration}ms ${settings.animationCurve}` : ''
             }}
           />
@@ -151,7 +219,7 @@ const Carousel = ({imageUrls, settings, setSettings}: CarouselProps) => {
         <>
           <button
             className="carousel-btn"
-            onClick={showPrevImage}
+            onClick={showPrevImageDeque}
             style={{left: 0}}
           >
             <ArrowBigLeft/>

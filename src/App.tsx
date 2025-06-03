@@ -35,7 +35,7 @@ const App = () => {
     animation: false,
     animDuration: 1000,
     animationCurve: 'linear',
-    sliderLogic: 'strip',
+    sliderLogic: 'deque',
   });
 
   return (
